@@ -1,1 +1,1 @@
-License
+See readme for individual projects
