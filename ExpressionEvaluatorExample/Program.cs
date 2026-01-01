@@ -1,63 +1,68 @@
-﻿namespace ExpressionEvaluatorExample;
+﻿using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+
+using ExpressionEvaluatorExample.ScriptSupport;
+
+namespace ExpressionEvaluatorExample;
 
 public class Program
 {
     static void Main(string[] args)
     {
-        Console.WriteLine("Enter \"quit\" to quit");
-        Console.WriteLine("Enter \"roslyn\" or \"expresso\" to change evaluator");
-        Console.WriteLine("Enter \"clear\" to clear saved variables");
-        Console.WriteLine("Or an assignment expression that may use any variables previously created");
-        var values = new Dictionary<string, object>();
-        while (true)
-        {
-            var line = Console.ReadLine();
-            line = line ?? "quit";
-            if (line.Trim().ToLower() == "quit")
-                break;
-            if (line.Trim().ToLower() == "roslyn")
-            {
-                Evaluator = new RoslynEvaluator();
-                Console.WriteLine("Using Roslyn expression evaluator");
-                continue;
-            }
-            if (line.Trim().ToLower() == "expresso")
-            {
-                Evaluator = new ExpressoEvaluator();
-                Console.WriteLine("Using DynamicExpresso expression evaluator");
-                continue;
-            }
-            if (line.Trim().ToLower() == "clear")
-            {
-                values.Clear();
-                Console.WriteLine("All variables have been cleared");
-                continue;
-            }
-            if (line.Trim().Length == 0)
-                continue;
-            var result = Evaluator.Evaluate(line, values);
-            if (result.IsFailed)
-                foreach (var error in result.Errors)
-                    Console.WriteLine(error);
-            else
-                values[result.Value.Variable] = result.Value.Value;
-        }
-        DisplayGlobals(values);
-        
-        Console.Write("Press enter to continue...");
+        var context = InitializeContext();
+
+        EvaluateCode(context, "return DateTime.Now.Second;", "NumericValue", PrimativeType.Numeric);
+        EvaluateCode(context, "if (NumericValue > 20)\r\n  return DateTime.Now;\r\nreturn DateTime.Today;", "TemporalValue", PrimativeType.Temporal);
+        EvaluateCode(context, "return NumericValue > 29;", "LogicalValue", PrimativeType.Logical);
+        EvaluateCode(context, "return NumericValue.ToString().Substring(0,1);", "TextValue", PrimativeType.Text);
+
+        Console.WriteLine();
+        Console.Write("Press [Enter] to finish...");
         Console.ReadLine();
     }
 
-    static EvaluatorBase Evaluator { get; set; } = new RoslynEvaluator();
-
-    static void DisplayGlobals(Dictionary<string, object> values)
+    static RuleContext InitializeContext()
     {
-        if (values.Count == 0)
-            return;
+        var code = @"#nullable enable
+bool?     LogicalValue  { get { return GetLogicalValue(""LogicalValue""); } }
+decimal?  NumericValue  { get { return GetNumericValue(""NumericValue""); } }
+DateTime? TemporalValue { get { return GetTemporalValue(""TemporalValue""); } }
+string?   TextValue     { get { return GetTextValue(""TextValue""); } }
+";
+        var options = ScriptOptions.Default
+            .AddReferences("System")
+            .AddReferences(typeof(Program).Assembly)
+            .WithImports("System", "ExpressionEvaluatorExample.ScriptSupport")
+        ;
+        var start = DateTime.Now;
+        var script = CSharpScript.Create<object>(code, options, globalsType: typeof(ScriptContext));
+        var compileResult = script.Compile();
+        Console.WriteLine($"Compiled context in {start = DateTime.Now}");
+
+        var result = new RuleContext([], script);
+        DisplayValues(result);
+        return result;
+    }
+
+    static void EvaluateCode(RuleContext context, string code, string assignTo, PrimativeType type)
+    {
         Console.WriteLine();
-        Console.WriteLine("Globals:");
-        foreach (var key in values.Keys.OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase))
-            Console.WriteLine($"  {values[key].GetType().Name} {key} = {values[key]}");
-        Console.WriteLine();
+        Console.WriteLine($"Assigning {assignTo} with result of:");
+        Console.WriteLine(code);
+        var start = DateTime.Now;
+        var result = context.Script.ContinueWith(code).RunAsync((ScriptContext)context).Result;
+        context.SetValue(assignTo, type, result.ReturnValue.ToString());
+        Console.Write($"Evaluated code in {start = DateTime.Now}");
+        DisplayValues(context);
+    }
+
+    static void DisplayValues(RuleContext context)
+    {
+        Console.WriteLine("Context values:");
+        Console.WriteLine($"  LogicalValue:  \"{context.GetTextForValue("LogicalValue")}\"");
+        Console.WriteLine($"  NumericValue:  \"{context.GetTextForValue("NumericValue")}\"");
+        Console.WriteLine($"  TemporalValue: \"{context.GetTextForValue("TemporalValue")}\"");
+        Console.WriteLine($"  TextValue:     \"{context.GetTextForValue("TextValue")}\"");
     }
 }
