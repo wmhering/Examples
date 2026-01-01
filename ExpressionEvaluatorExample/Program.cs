@@ -16,6 +16,8 @@ public class Program
         EvaluateCode(context, "if (NumericValue > 20)\r\n  return DateTime.Now;\r\nreturn DateTime.Today;", "TemporalValue", PrimativeType.Temporal);
         EvaluateCode(context, "return NumericValue > 29;", "LogicalValue", PrimativeType.Logical);
         EvaluateCode(context, "return NumericValue.ToString().Substring(0,1);", "TextValue", PrimativeType.Text);
+        EvaluateCode(context, "Invalid code;", "TextValue", PrimativeType.Text);
+        EvaluateCode(context, "throw new NotSupportedException(\"Exception handling test\");", "TextValue", PrimativeType.Text);
 
         Console.WriteLine();
         Console.Write("Press [Enter] to finish...");
@@ -38,7 +40,7 @@ string?   TextValue     { get { return GetTextValue(""TextValue""); } }
         var start = DateTime.Now;
         var script = CSharpScript.Create<object>(code, options, globalsType: typeof(ScriptContext));
         var compileResult = script.Compile();
-        Console.WriteLine($"Compiled context in {start = DateTime.Now}");
+        Console.WriteLine($"Compiled context in {(DateTime.Now - start).TotalSeconds}s");
 
         var result = new RuleContext([], script);
         DisplayValues(result);
@@ -48,13 +50,27 @@ string?   TextValue     { get { return GetTextValue(""TextValue""); } }
     static void EvaluateCode(RuleContext context, string code, string assignTo, PrimativeType type)
     {
         Console.WriteLine();
-        Console.WriteLine($"Assigning {assignTo} with result of:");
+        Console.WriteLine($"Assigning {assignTo} the result of the following code:");
         Console.WriteLine(code);
-        var start = DateTime.Now;
-        var result = context.Script.ContinueWith(code).RunAsync((ScriptContext)context).Result;
-        context.SetValue(assignTo, type, result.ReturnValue.ToString());
-        Console.Write($"Evaluated code in {start = DateTime.Now}");
-        DisplayValues(context);
+        try
+        {
+            var start = DateTime.Now;
+            var result = context.Script.ContinueWith(code).RunAsync((ScriptContext)context, catchException: ex => true).Result;
+            if (result.Exception != null)
+            {
+                Console.WriteLine($"The code threw a(n) {result.Exception.GetType().Name}: {result.Exception.Message}");
+                return;
+            }
+            context.SetValue(assignTo, type, result.ReturnValue?.ToString() ?? "");
+            Console.WriteLine($"Evaluated code in {(DateTime.Now - start).TotalSeconds}s");
+            DisplayValues(context);
+        }
+        catch (CompilationErrorException ex)
+        {
+            Console.WriteLine("The following error(s) occured while compiling code:");
+            foreach (var diagnostic in ex.Diagnostics)
+                Console.WriteLine($"  {diagnostic.Severity} {diagnostic.Id}: {diagnostic.GetMessage()}");
+        }
     }
 
     static void DisplayValues(RuleContext context)
