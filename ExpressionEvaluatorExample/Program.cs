@@ -16,7 +16,7 @@ public class Program
         EvaluateCode(context, "if (NumericValue > 20)\r\n  return DateTime.Now;\r\nreturn DateTime.Today;", "TemporalValue", PrimativeType.Temporal);
         EvaluateCode(context, "return NumericValue > 29;", "LogicalValue", PrimativeType.Logical);
         EvaluateCode(context, "return NumericValue.ToString().Substring(0,1);", "TextValue", PrimativeType.Text);
-        EvaluateCode(context, "Invalid code;", "TextValue", PrimativeType.Text);
+        EvaluateCode(context, "throw new NotSupportedException(\"This will not compile\")", "TextValue", PrimativeType.Text);
         EvaluateCode(context, "throw new NotSupportedException(\"Exception handling test\");", "TextValue", PrimativeType.Text);
 
         Console.WriteLine();
@@ -51,14 +51,16 @@ string?   TextValue     { get { return GetTextValue(""TextValue""); } }
     {
         Console.WriteLine();
         Console.WriteLine($"Assigning {assignTo} the result of the following code:");
-        Console.WriteLine(code);
+        Console.ForegroundColor = ConsoleColor.Cyan; Console.WriteLine(code); Console.ResetColor();
         try
         {
             var start = DateTime.Now;
             var result = context.Script.ContinueWith(code).RunAsync((ScriptContext)context, catchException: ex => true).Result;
             if (result.Exception != null)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"The code threw a(n) {result.Exception.GetType().Name}: {result.Exception.Message}");
+                Console.ResetColor();
                 return;
             }
             context.SetValue(assignTo, type, result.ReturnValue?.ToString() ?? "");
@@ -67,9 +69,11 @@ string?   TextValue     { get { return GetTextValue(""TextValue""); } }
         }
         catch (CompilationErrorException ex)
         {
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("The following error(s) occured while compiling code:");
             foreach (var diagnostic in ex.Diagnostics)
-                Console.WriteLine($"  {diagnostic.Severity} {diagnostic.Id}: {diagnostic.GetMessage()}");
+                Console.WriteLine($"  {diagnostic}");
+            Console.ResetColor();
         }
     }
 
