@@ -12,7 +12,7 @@ namespace ConfigurationExamples
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory()) // In Microsoft.Extensions.Configuration.FileExtensions
                 .AddJsonFile("appsettings.json") // In Microsoft.Extensions.Configuration.Json
-                .AddEnvironmentVariables() // In Microsoft.Extensions.Configuration.EnvironmentVaiables
+                .AddEnvironmentVariables("TEST_") // In Microsoft.Extensions.Configuration.EnvironmentVaiables
                 .AddCommandLine(args) // In Microsoft.Extensions.Configuration.CommandLine
                 .Build();
 

@@ -1,5 +1,7 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Scripting;
 
 using ExpressionEvaluatorExample.ScriptSupport;
@@ -10,6 +12,9 @@ public class Program
 {
     static void Main(string[] args)
     {
+        var syntaxTree = CSharpSyntaxTree.ParseText("return TemporalValue.AddDays(Files[0].NumericValue > 29 ? 1 : NumericValue);");
+        SyntaxNode rootNode = syntaxTree.GetRoot();
+
         var context = InitializeContext();
 
         EvaluateCode(context, "return DateTime.Now.Second;", "NumericValue", PrimativeType.Numeric);
@@ -84,5 +89,32 @@ string?   TextValue     { get { return GetTextValue(""TextValue""); } }
         Console.WriteLine($"  NumericValue:  \"{context.GetTextForValue("NumericValue")}\"");
         Console.WriteLine($"  TemporalValue: \"{context.GetTextForValue("TemporalValue")}\"");
         Console.WriteLine($"  TextValue:     \"{context.GetTextForValue("TextValue")}\"");
+    }
+
+    static void DisplayAST(SyntaxNode node, int level = 0)
+    {
+        Console.Write(new string(' ', level * 4));
+        Console.Write(node.GetType().Name);
+        Console.Write(" - ");
+        Console.WriteLine(node.GetText());
+        foreach (var child in node.ChildNodes())
+            DisplayAST(child, level + 1);
+    }
+
+    static IEnumerable<string> GetIdentifiers(SyntaxNode node)
+    {
+        if (node is IdentifierNameSyntax identifier && IdentifierFilter((IdentifierNameSyntax)node))            
+            yield return identifier.Identifier.Text;
+        foreach (var child in node.ChildNodes())
+            foreach (var id in GetIdentifiers(child))
+                yield return id;
+    }
+
+    static bool IdentifierFilter(IdentifierNameSyntax identifier)
+    {
+        // Skip method names
+        if (identifier.Parent is MemberAccessExpressionSyntax && identifier == identifier.Parent.ChildNodes().Skip(1).First())
+            return false;
+        return true;
     }
 }

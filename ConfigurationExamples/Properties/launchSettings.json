@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ConfigurationExamples": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "TEST_AppSettings__UploadTimeoutSeconds": "120"
+      }
+    }
+  }
+}
